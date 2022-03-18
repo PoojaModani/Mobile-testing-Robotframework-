@@ -3,9 +3,9 @@ Library     AppiumLibrary
 
 *** Variables ***
 ${email}    //*[contains(@resource-id, 'email')]
-${email value}  indiakarnataka18@gmail.com
+${email value}  TYPE YOUR EMAIL
 ${password}     //*[contains(@resource-id, 'password')]
-${password value}   Tom2jerry!
+${password value}   TYPE YOUR PASSWORD
 ${Login}    //*[contains(@text, 'LOGIN')]
 ${Set up later}     //*[contains(@text,'Setup Later')]
 ${Watchlist}    //*[contains(@text,'Watchlist')]
