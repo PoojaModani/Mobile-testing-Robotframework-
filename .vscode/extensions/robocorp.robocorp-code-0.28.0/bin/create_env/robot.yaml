@@ -1,0 +1,14 @@
+tasks:
+  Obtain environment information:
+    command: 
+      - python
+      - get_env_info.py
+
+artifactsDir: output
+
+condaConfigFile: conda.yaml
+environmentConfigs:
+  - conda_vscode_windows_amd64.yaml
+  - conda_vscode_darwin_amd64.yaml
+  - conda_vscode_linux_amd64.yaml
+  - conda.yaml

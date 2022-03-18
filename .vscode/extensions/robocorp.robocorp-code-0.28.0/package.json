@@ -1,0 +1,901 @@
+{
+	"name": "robocorp-code",
+	"displayName": "Robocorp Code",
+	"description": "Extension for Robot development in VSCode using Robocorp",
+	"author": "Fabio Zadrozny",
+	"homepage": "https://github.com/robocorp/robotframework-lsp/blob/master/robocorp-code/README.md",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/robocorp/robotframework-lsp.git"
+	},
+	"license": "SEE LICENSE IN LICENSE.txt",
+	"version": "0.28.0",
+	"icon": "images/icon.png",
+	"publisher": "robocorp",
+	"engines": {
+		"vscode": "^1.61.0"
+	},
+	"categories": [
+		"Debuggers"
+	],
+	"activationEvents": [
+		"onCommand:robocorp.getLanguageServerPython",
+		"onCommand:robocorp.getLanguageServerPythonInfo",
+		"onCommand:robocorp.getPluginsDir",
+		"onCommand:robocorp.createRobot",
+		"onCommand:robocorp.listRobotTemplates.internal",
+		"onCommand:robocorp.createRobot.internal",
+		"onCommand:robocorp.uploadRobotToCloud",
+		"onCommand:robocorp.localListRobots.internal",
+		"onCommand:robocorp.isLoginNeeded.internal",
+		"onCommand:robocorp.getLinkedAccountInfo.internal",
+		"onCommand:robocorp.cloudLogin",
+		"onCommand:robocorp.cloudLogin.internal",
+		"onCommand:robocorp.cloudListWorkspaces.internal",
+		"onCommand:robocorp.uploadToNewRobot.internal",
+		"onCommand:robocorp.uploadToExistingRobot.internal",
+		"onCommand:robocorp.runInRcc.internal",
+		"onCommand:robocorp.runRobotRcc",
+		"onCommand:robocorp.debugRobotRcc",
+		"onCommand:robocorp.robotsViewTaskRun",
+		"onCommand:robocorp.robotsViewTaskDebug",
+		"onCommand:robocorp.saveInDiskLRU",
+		"onCommand:robocorp.loadFromDiskLRU",
+		"onCommand:robocorp.computeRobotLaunchFromRobocorpCodeLaunch",
+		"onCommand:robocorp.setPythonInterpreter",
+		"onCommand:robocorp.resolveInterpreter",
+		"onCommand:robocorp.cloudLogout",
+		"onCommand:robocorp.cloudLogout.internal",
+		"onCommand:robocorp.refreshRobotsView",
+		"onCommand:robocorp.refreshRobotContentView",
+		"onCommand:robocorp.newFileInRobotContentView",
+		"onCommand:robocorp.newFolderInRobotContentView",
+		"onCommand:robocorp.deleteResourceInRobotContentView",
+		"onCommand:robocorp.renameResourceInRobotContentView",
+		"onCommand:robocorp.refreshCloudView",
+		"onCommand:robocorp.getLocatorsJsonInfo",
+		"onCommand:robocorp.removeLocatorFromJson.internal",
+		"onCommand:robocorp.removeLocatorFromJson",
+		"onCommand:robocorp.openCloudHome",
+		"onCommand:robocorp.newRobocorpInspectorBrowser",
+		"onCommand:robocorp.newRobocorpInspectorImage",
+		"onCommand:robocorp.newRobocorpInspectorWindows",
+		"onCommand:robocorp.editRobocorpInspectorLocator",
+		"onCommand:robocorp.copyLocatorToClipboard.internal",
+		"onCommand:robocorp.openRobotTreeSelection",
+		"onCommand:robocorp.openExternally",
+		"onCommand:robocorp.openInVSCode",
+		"onCommand:robocorp.revealInExplorer",
+		"onCommand:robocorp.revealRobotInExplorer",
+		"onCommand:robocorp.cloudUploadRobotTreeSelection",
+		"onCommand:robocorp.rccTerminalCreateRobotTreeSelection",
+		"onCommand:robocorp.sendMetric",
+		"onCommand:robocorp.submitIssue.internal",
+		"onCommand:robocorp.submitIssue",
+		"onCommand:robocorp.errorFeedback.internal",
+		"onCommand:robocorp.configuration.diagnostics.internal",
+		"onCommand:robocorp.configuration.diagnostics",
+		"onCommand:robocorp.rccTerminalNew",
+		"onCommand:robocorp.listWorkItems.internal",
+		"onCommand:robocorp.updateLaunchEnv",
+		"onCommand:robocorp.updateLaunchEnv.getVaultEnv.internal",
+		"onCommand:robocorp.newWorkItemInWorkItemsView",
+		"onCommand:robocorp.deleteWorkItemInWorkItemsView",
+		"onCommand:robocorp.helpWorkItems",
+		"onCommand:robocorp.convertOutputWorkItemToInput",
+		"onCommand:robocorp.verifyLibraryVersion.internal",
+		"onCommand:robocorp.connectVault",
+		"onCommand:robocorp.disconnectVault",
+		"onCommand:robocorp.getConnectedVaultWorkspace.internal",
+		"onCommand:robocorp.setConnectedVaultWorkspace.internal",
+		"onCommand:robocorp.openVaultHelp",
+		"onCommand:robocorp.clearEnvAndRestart",
+		"onDebugInitialConfigurations",
+		"onDebugResolve:robocorp-code",
+		"onView:robocorp-robots-tree",
+		"onView:robocorp-robot-content-tree",
+		"onView:robocorp-locators-tree",
+		"onView:robocorp-work-items-tree",
+		"onView:robocorp-cloud-tree",
+		"onLanguage:json",
+		"onLanguage:yaml"
+	],
+	"contributes": {
+		"configuration": {
+			"title": "Robocorp Code Language Server Configuration",
+			"type": "object",
+			"properties": {
+				"robocorp.language-server.tcp-port": {
+					"type": "number",
+					"default": 0,
+					"description": "If the port is specified, connect to the language server previously started at the given port. Requires a VSCode restart to take effect."
+				},
+				"robocorp.language-server.args": {
+					"type": "array",
+					"default": [],
+					"description": "Specifies the arguments to be passed to the Robocorp Code language server (i.e.: [\"-vv\", \"--log-file=~/robocorp_code.log\"]). Requires a VSCode restart to take effect."
+				},
+				"robocorp.language-server.python": {
+					"type": "string",
+					"default": "",
+					"description": "Specifies the path to the python executable to be used for the Robocorp Code Language Server (the default is searching python on the PATH). Requires a VSCode restart to take effect."
+				},
+				"robocorp.rcc.location": {
+					"type": "string",
+					"default": "",
+					"description": "Specifies the location of the rcc tool."
+				},
+				"robocorp.rcc.endpoint": {
+					"type": "string",
+					"default": "",
+					"description": "Can be used to specify a different endpoint for rcc."
+				},
+				"robocorp.rcc.config_location": {
+					"type": "string",
+					"default": "",
+					"description": "Specifies the config location used by rcc."
+				},
+				"robocorp.home": {
+					"type": "string",
+					"default": "",
+					"description": "Specifies the value for ROBOCORP_HOME (where the conda environments will be downloaded). Must point to a directory without spaces in it."
+				},
+				"robocorp.verifyLSP": {
+					"type": "boolean",
+					"default": "true",
+					"description": "Verify if the Robot Framework Language Server is installed?"
+				},
+				"robocorp.autoSetPythonExtensionInterpreter": {
+					"type": "boolean",
+					"default": "true",
+					"description": "If a file in a Robot is opened, the python extension interpreter is automatically set to match the Robot interpreter."
+				}
+			}
+		},
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "robocorp-robots",
+					"title": "Robocorp Code",
+					"icon": "images/robocorp-outline.svg"
+				}
+			]
+		},
+		"views": {
+			"robocorp-robots": [
+				{
+					"id": "robocorp-robots-tree",
+					"name": "Robots",
+					"contextualTitle": "Robots"
+				},
+				{
+					"id": "robocorp-robot-content-tree",
+					"name": "Robot Content",
+					"contextualTitle": "Robot Content"
+				},
+				{
+					"id": "robocorp-locators-tree",
+					"name": "Locators",
+					"contextualTitle": "Locators"
+				},
+				{
+					"id": "robocorp-work-items-tree",
+					"name": "Work Items",
+					"contextualTitle": "Work Items"
+				},
+				{
+					"id": "robocorp-cloud-tree",
+					"name": "Robocorp",
+					"contextualTitle": "Robocorp"
+				}
+			]
+		},
+		"languages": [],
+		"grammars": [],
+		"debuggers": [
+			{
+				"type": "robocorp-code",
+				"label": "Robocorp Code",
+				"languages": [],
+				"configurationAttributes": {
+					"launch": {
+						"properties": {
+							"robot": {
+								"type": "string",
+								"description": "The robot.yaml file with the task to be launched.",
+								"default": "${file}"
+							},
+							"task": {
+								"type": "string",
+								"description": "The task name from the robot to be run."
+							},
+							"args": {
+								"type": "array",
+								"description": "Additional command line arguments for running the robot."
+							},
+							"env": {
+								"type": "object",
+								"description": "Environment variables to be added to the launch."
+							}
+						}
+					}
+				},
+				"configurationSnippets": [
+					{
+						"label": "Robocorp Code: Launch task from robot.yaml",
+						"description": "Add a new configuration for launching tasks from a robot.yaml.",
+						"body": {
+							"type": "robocorp-code",
+							"name": "Robocorp Code: Launch task from robot.yaml",
+							"request": "launch",
+							"robot": "^\"\\${file}\"",
+							"task": ""
+						}
+					}
+				]
+			}
+		],
+		"keybindings": [],
+		"commands": [
+			{
+				"command": "robocorp.createRobot",
+				"title": "Create Robot",
+				"category": "Robocorp",
+				"icon": "$(add)"
+			},
+			{
+				"command": "robocorp.uploadRobotToCloud",
+				"title": "Upload Robot to the Control Room",
+				"category": "Robocorp"
+			},
+			{
+				"command": "robocorp.cloudLogin",
+				"title": "Link to Control Room",
+				"category": "Robocorp",
+				"icon": "$(link)"
+			},
+			{
+				"command": "robocorp.runRobotRcc",
+				"title": "Run Robot",
+				"category": "Robocorp"
+			},
+			{
+				"command": "robocorp.debugRobotRcc",
+				"title": "Debug Robot",
+				"category": "Robocorp"
+			},
+			{
+				"command": "robocorp.robotsViewTaskRun",
+				"title": "Launch Task",
+				"category": "Robocorp",
+				"icon": {
+					"light": "images/light/run.svg",
+					"dark": "images/dark/run.svg"
+				}
+			},
+			{
+				"command": "robocorp.robotsViewTaskDebug",
+				"title": "Debug Task",
+				"category": "Robocorp",
+				"icon": {
+					"light": "images/light/debug.svg",
+					"dark": "images/dark/debug.svg"
+				}
+			},
+			{
+				"command": "robocorp.setPythonInterpreter",
+				"title": "Set pythonPath based on robot.yaml",
+				"category": "Robocorp"
+			},
+			{
+				"command": "robocorp.cloudLogout",
+				"title": "Unlink and remove credentials from Control Room",
+				"category": "Robocorp",
+				"icon": "$(debug-disconnect)"
+			},
+			{
+				"command": "robocorp.refreshRobotsView",
+				"title": "Refresh Robots view",
+				"category": "Robocorp",
+				"icon": {
+					"light": "images/light/refresh.svg",
+					"dark": "images/dark/refresh.svg"
+				}
+			},
+			{
+				"command": "robocorp.refreshRobotContentView",
+				"title": "Refresh Robot Content view",
+				"category": "Robocorp",
+				"icon": {
+					"light": "images/light/refresh.svg",
+					"dark": "images/dark/refresh.svg"
+				}
+			},
+			{
+				"command": "robocorp.newFileInRobotContentView",
+				"title": "New File",
+				"category": "Robocorp",
+				"icon": "$(new-file)"
+			},
+			{
+				"command": "robocorp.newFolderInRobotContentView",
+				"title": "New Folder",
+				"category": "Robocorp",
+				"icon": "$(new-folder)"
+			},
+			{
+				"command": "robocorp.deleteResourceInRobotContentView",
+				"title": "Delete",
+				"category": "Robocorp",
+				"icon": "$(close)"
+			},
+			{
+				"command": "robocorp.renameResourceInRobotContentView",
+				"title": "Rename",
+				"category": "Robocorp",
+				"icon": "$(edit)"
+			},
+			{
+				"command": "robocorp.refreshCloudView",
+				"title": "Refresh Robocorp view",
+				"category": "Robocorp",
+				"icon": {
+					"light": "images/light/refresh.svg",
+					"dark": "images/dark/refresh.svg"
+				}
+			},
+			{
+				"command": "robocorp.removeLocatorFromJson",
+				"title": "Remove Locator",
+				"category": "Robocorp",
+				"icon": "$(trash)"
+			},
+			{
+				"command": "robocorp.openCloudHome",
+				"title": "Open cloud home",
+				"category": "Robocorp",
+				"icon": "$(cloud)"
+			},
+			{
+				"command": "robocorp.newRobocorpInspectorBrowser",
+				"title": "Add Browser Locator",
+				"category": "Robocorp",
+				"icon": "$(globe)"
+			},
+			{
+				"command": "robocorp.newRobocorpInspectorImage",
+				"title": "Add Image Locator",
+				"category": "Robocorp",
+				"icon": "$(desktop-download)"
+			},
+			{
+				"command": "robocorp.newRobocorpInspectorWindows",
+				"title": "Add Windows Locator",
+				"category": "Robocorp",
+				"icon": "$(window)"
+			},
+			{
+				"command": "robocorp.editRobocorpInspectorLocator",
+				"title": "Edit locator",
+				"category": "Robocorp",
+				"icon": "$(edit)"
+			},
+			{
+				"command": "robocorp.copyLocatorToClipboard.internal",
+				"title": "Copy locator name to clipboard",
+				"category": "Robocorp",
+				"icon": "$(clippy)"
+			},
+			{
+				"command": "robocorp.openRobotTreeSelection",
+				"title": "Open robot.yaml",
+				"category": "Robocorp",
+				"icon": "$(go-to-file)"
+			},
+			{
+				"command": "robocorp.openExternally",
+				"title": "Open externally",
+				"category": "Robocorp",
+				"icon": "$(go-to-file)"
+			},
+			{
+				"command": "robocorp.openInVSCode",
+				"title": "Open in VSCode",
+				"category": "Robocorp",
+				"icon": "$(file)"
+			},
+			{
+				"command": "robocorp.revealInExplorer",
+				"title": "Reveal in File Explorer",
+				"category": "Robocorp",
+				"icon": "$(file-submodule)"
+			},
+			{
+				"command": "robocorp.revealRobotInExplorer",
+				"title": "Reveal robot.yaml in File Explorer",
+				"category": "Robocorp",
+				"icon": "$(file-submodule)"
+			},
+			{
+				"command": "robocorp.cloudUploadRobotTreeSelection",
+				"title": "Upload Robot to Control Room",
+				"category": "Robocorp",
+				"icon": "$(cloud-upload)"
+			},
+			{
+				"command": "robocorp.rccTerminalCreateRobotTreeSelection",
+				"title": "Open terminal with Robot environment",
+				"category": "Robocorp",
+				"icon": "$(terminal)"
+			},
+			{
+				"command": "robocorp.submitIssue.internal",
+				"title": "Submit issue (internal)",
+				"category": "Robocorp"
+			},
+			{
+				"command": "robocorp.submitIssue",
+				"title": "Submit issue to Robocorp",
+				"category": "Robocorp"
+			},
+			{
+				"command": "robocorp.errorFeedback.internal",
+				"title": "Error feedback (internal)",
+				"category": "Robocorp"
+			},
+			{
+				"command": "robocorp.configuration.diagnostics.internal",
+				"title": "Robot Configuration Diagnostics (internal)",
+				"category": "Robocorp"
+			},
+			{
+				"command": "robocorp.configuration.diagnostics",
+				"title": "Robot Configuration Diagnostics",
+				"category": "Robocorp"
+			},
+			{
+				"command": "robocorp.rccTerminalNew",
+				"title": "Terminal with Robot environment",
+				"category": "Robocorp",
+				"icon": "$(terminal)"
+			},
+			{
+				"command": "robocorp.listWorkItems.internal",
+				"title": "Lists the work items available for a Robot",
+				"category": "Robocorp"
+			},
+			{
+				"command": "robocorp.updateLaunchEnv",
+				"title": "Updates the environment variables used for some launch (given a Robot)",
+				"category": "Robocorp"
+			},
+			{
+				"command": "robocorp.updateLaunchEnv.getVaultEnv.internal",
+				"title": "Provides the environment variables related to the vault.",
+				"category": "Robocorp"
+			},
+			{
+				"command": "robocorp.newWorkItemInWorkItemsView",
+				"title": "New Work Item",
+				"category": "Robocorp",
+				"icon": "$(new-file)"
+			},
+			{
+				"command": "robocorp.deleteWorkItemInWorkItemsView",
+				"title": "Delete Work Item",
+				"category": "Robocorp",
+				"icon": "$(trash)"
+			},
+			{
+				"command": "robocorp.helpWorkItems",
+				"title": "Work Items Help",
+				"category": "Robocorp",
+				"icon": "$(question)"
+			},
+			{
+				"command": "robocorp.convertOutputWorkItemToInput",
+				"title": "Convert output work item to input",
+				"category": "Robocorp",
+				"icon": "$(fold-up)"
+			},
+			{
+				"command": "robocorp.connectVault",
+				"title": "Connect to online secrets vault",
+				"category": "Robocorp",
+				"icon": "$(lock)"
+			},
+			{
+				"command": "robocorp.disconnectVault",
+				"title": "Disconnect from online secrets vault",
+				"category": "Robocorp",
+				"icon": "$(unlock)"
+			},
+			{
+				"command": "robocorp.getConnectedVaultWorkspace.internal",
+				"title": "Gets workspace id of the currently connected vault",
+				"category": "Robocorp"
+			},
+			{
+				"command": "robocorp.setConnectedVaultWorkspace.internal",
+				"title": "Sets the currently connected vault workspace",
+				"category": "Robocorp"
+			},
+			{
+				"command": "robocorp.openVaultHelp",
+				"title": "Open vault help",
+				"category": "Robocorp"
+			},
+			{
+				"command": "robocorp.clearEnvAndRestart",
+				"title": "Clear Robocorp (RCC) environments and restart Robocorp Code",
+				"category": "Robocorp"
+			}
+		],
+		"menus": {
+			"view/title": [
+				{
+					"command": "robocorp.refreshRobotsView",
+					"when": "view == robocorp-robots-tree",
+					"group": "navigation"
+				},
+				{
+					"command": "robocorp.createRobot",
+					"when": "view == robocorp-robots-tree",
+					"group": "navigation"
+				},
+				{
+					"command": "robocorp.newFileInRobotContentView",
+					"when": "view == robocorp-robot-content-tree && robocorp-code:single-robot-selected && viewItem == directoryItem",
+					"group": "navigation"
+				},
+				{
+					"command": "robocorp.newFolderInRobotContentView",
+					"when": "view == robocorp-robot-content-tree && robocorp-code:single-robot-selected && viewItem == directoryItem",
+					"group": "navigation"
+				},
+				{
+					"command": "robocorp.refreshRobotContentView",
+					"when": "view == robocorp-robot-content-tree",
+					"group": "navigation"
+				},
+				{
+					"command": "robocorp.newRobocorpInspectorBrowser",
+					"when": "view == robocorp-locators-tree && robocorp-code:single-robot-selected",
+					"group": "navigation"
+				},
+				{
+					"command": "robocorp.newRobocorpInspectorImage",
+					"when": "view == robocorp-locators-tree && robocorp-code:single-robot-selected",
+					"group": "navigation"
+				},
+				{
+					"command": "robocorp.newRobocorpInspectorWindows",
+					"when": "view == robocorp-locators-tree && robocorp-code:single-robot-selected",
+					"group": "navigation"
+				},
+				{
+					"command": "robocorp.newWorkItemInWorkItemsView",
+					"when": "view == robocorp-work-items-tree && robocorp-code:single-robot-selected",
+					"group": "navigation"
+				},
+				{
+					"command": "robocorp.helpWorkItems",
+					"when": "view == robocorp-work-items-tree && robocorp-code:single-robot-selected",
+					"group": "navigation"
+				}
+			],
+			"view/item/context": [
+				{
+					"command": "robocorp.robotsViewTaskRun",
+					"when": "view == robocorp-robots-tree && viewItem == taskItem",
+					"group": "inline"
+				},
+				{
+					"command": "robocorp.robotsViewTaskDebug",
+					"when": "view == robocorp-robots-tree && viewItem == taskItem",
+					"group": "inline"
+				},
+				{
+					"command": "robocorp.openRobotTreeSelection",
+					"when": "view == robocorp-robots-tree && viewItem == robotItem",
+					"group": "inline"
+				},
+				{
+					"command": "robocorp.cloudUploadRobotTreeSelection",
+					"when": "view == robocorp-robots-tree && viewItem == robotItem",
+					"group": "inline"
+				},
+				{
+					"command": "robocorp.rccTerminalCreateRobotTreeSelection",
+					"when": "view == robocorp-robots-tree && viewItem == robotItem",
+					"group": "inline"
+				},
+				{
+					"command": "robocorp.robotsViewTaskRun",
+					"when": "view == robocorp-robots-tree && viewItem == taskItem",
+					"group": "navigation"
+				},
+				{
+					"command": "robocorp.robotsViewTaskDebug",
+					"when": "view == robocorp-robots-tree && viewItem == taskItem",
+					"group": "navigation"
+				},
+				{
+					"command": "robocorp.revealRobotInExplorer",
+					"when": "view == robocorp-robots-tree && viewItem == robotItem",
+					"group": "navigation"
+				},
+				{
+					"command": "robocorp.openRobotTreeSelection",
+					"when": "view == robocorp-robots-tree && viewItem == robotItem",
+					"group": "navigation"
+				},
+				{
+					"command": "robocorp.rccTerminalCreateRobotTreeSelection",
+					"when": "view == robocorp-robots-tree && viewItem == robotItem",
+					"group": "navigation"
+				},
+				{
+					"command": "robocorp.cloudUploadRobotTreeSelection",
+					"when": "view == robocorp-robots-tree && viewItem == robotItem",
+					"group": "navigation"
+				},
+				{
+					"command": "robocorp.newFileInRobotContentView",
+					"when": "view == robocorp-robot-content-tree && robocorp-code:single-robot-selected && viewItem == directoryItem",
+					"group": "0_new"
+				},
+				{
+					"command": "robocorp.newFolderInRobotContentView",
+					"when": "view == robocorp-robot-content-tree && robocorp-code:single-robot-selected && viewItem == directoryItem",
+					"group": "0_new"
+				},
+				{
+					"command": "robocorp.openExternally",
+					"when": "view == robocorp-robot-content-tree && robocorp-code:single-robot-selected && viewItem == fileItem",
+					"group": "1_open"
+				},
+				{
+					"command": "robocorp.openInVSCode",
+					"when": "view == robocorp-robot-content-tree && robocorp-code:single-robot-selected && viewItem == fileItem",
+					"group": "1_open"
+				},
+				{
+					"command": "robocorp.revealInExplorer",
+					"when": "view == robocorp-robot-content-tree && robocorp-code:single-robot-selected",
+					"group": "1_open"
+				},
+				{
+					"command": "robocorp.renameResourceInRobotContentView",
+					"when": "view == robocorp-robot-content-tree && robocorp-code:single-robot-selected",
+					"group": "2_change"
+				},
+				{
+					"command": "robocorp.deleteResourceInRobotContentView",
+					"when": "view == robocorp-robot-content-tree && robocorp-code:single-robot-selected",
+					"group": "2_change"
+				},
+				{
+					"command": "robocorp.editRobocorpInspectorLocator",
+					"when": "view == robocorp-locators-tree && robocorp-code:single-robot-selected && viewItem == locatorEntry",
+					"group": "inline"
+				},
+				{
+					"command": "robocorp.copyLocatorToClipboard.internal",
+					"when": "view == robocorp-locators-tree && robocorp-code:single-robot-selected && viewItem == locatorEntry",
+					"group": "inline"
+				},
+				{
+					"command": "robocorp.removeLocatorFromJson",
+					"when": "view == robocorp-locators-tree && robocorp-code:single-robot-selected && viewItem == locatorEntry",
+					"group": "inline"
+				},
+				{
+					"command": "robocorp.newWorkItemInWorkItemsView",
+					"when": "view == robocorp-work-items-tree && robocorp-code:single-robot-selected",
+					"group": "0_new"
+				},
+				{
+					"command": "robocorp.deleteWorkItemInWorkItemsView",
+					"when": "view == robocorp-work-items-tree && viewItem == outputWorkItem || viewItem == inputWorkItem",
+					"group": "1_change"
+				},
+				{
+					"command": "robocorp.deleteWorkItemInWorkItemsView",
+					"when": "view == robocorp-work-items-tree && viewItem == outputWorkItem || viewItem == inputWorkItem",
+					"group": "inline"
+				},
+				{
+					"command": "robocorp.convertOutputWorkItemToInput",
+					"when": "view == robocorp-work-items-tree && viewItem == outputWorkItem",
+					"group": "inline"
+				},
+				{
+					"command": "robocorp.cloudLogin",
+					"when": "view == robocorp-cloud-tree && viewItem == cloudLoginItem",
+					"group": "inline"
+				},
+				{
+					"command": "robocorp.cloudLogout",
+					"when": "view == robocorp-cloud-tree && viewItem == cloudLogoutItem",
+					"group": "inline"
+				},
+				{
+					"command": "robocorp.openCloudHome",
+					"when": "view == robocorp-cloud-tree && viewItem == cloudLogoutItem",
+					"group": "inline"
+				},
+				{
+					"command": "robocorp.connectVault",
+					"when": "view == robocorp-cloud-tree && viewItem == vaultDisconnected",
+					"group": "inline"
+				},
+				{
+					"command": "robocorp.disconnectVault",
+					"when": "view == robocorp-cloud-tree && viewItem == vaultConnected",
+					"group": "inline"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "robocorp.robotsViewTaskRun",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.robotsViewTaskDebug",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.refreshRobotContentView",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.newFileInRobotContentView",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.newFolderInRobotContentView",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.deleteResourceInRobotContentView",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.renameResourceInRobotContentView",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.removeLocatorFromJson",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.openCloudHome",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.editRobocorpInspectorLocator",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.copyLocatorToClipboard.internal",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.openRobotTreeSelection",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.openExternally",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.openInVSCode",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.revealInExplorer",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.revealRobotInExplorer",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.cloudUploadRobotTreeSelection",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.rccTerminalCreateRobotTreeSelection",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.submitIssue.internal",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.errorFeedback.internal",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.configuration.diagnostics.internal",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.listWorkItems.internal",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.updateLaunchEnv",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.updateLaunchEnv.getVaultEnv.internal",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.deleteWorkItemInWorkItemsView",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.helpWorkItems",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.convertOutputWorkItemToInput",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.getConnectedVaultWorkspace.internal",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.setConnectedVaultWorkspace.internal",
+					"when": "false"
+				},
+				{
+					"command": "robocorp.openVaultHelp",
+					"when": "false"
+				}
+			]
+		}
+	},
+	"main": "./vscode-client/out/extension",
+	"prettier": {
+		"tabWidth": 4,
+		"printWidth": 120,
+		"quoteProps": "preserve"
+	},
+	"scripts": {
+		"vscode:prepublish": "cd vscode-client && npm run compile && cd ..",
+		"compile": "cd vscode-client && tsc -p ./ && cd ..",
+		"watch": "cd vscode-client && tsc -watch -p ./ && cd ..",
+		"pretest": "cd vscode-client && tsc -p ./ && cd ..",
+		"test": "node ./vscode-client/out/tests/runTests.js",
+		"prettier": "npx prettier -c vscode-client/**/*.ts",
+		"prettier-fix": "npx prettier -w vscode-client/**/*.ts"
+	},
+	"devDependencies": {
+		"@types/mocha": "^2.2.32",
+		"@types/node": "^13.0.00",
+		"@types/vscode": "1.61.0",
+		"prettier": "2.4.1",
+		"vscode-test": "1.5.1",
+		"typescript": "^4.5.4"
+	},
+	"dependencies": {
+		"vscode-languageclient": "^7.0.0",
+		"path-exists": "^4.0.0",
+		"http-proxy-agent": "^2.1.0",
+		"https-proxy-agent": "^2.2.4",
+		"vscode-nls": "^4.1.2"
+	},
+	"__metadata": {
+		"id": "d399eb2a-04c4-47ed-a8d1-87f06a4eaa66",
+		"publisherId": "0f4160fe-067b-4c44-9418-3331f079bfd1",
+		"publisherDisplayName": "Robocorp",
+		"isPreReleaseVersion": false,
+		"preRelease": false,
+		"installedTimestamp": 1647286166787
+	}
+}

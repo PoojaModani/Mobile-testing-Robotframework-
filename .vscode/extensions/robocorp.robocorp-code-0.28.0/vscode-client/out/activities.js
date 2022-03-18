@@ -1,0 +1,815 @@
+"use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.updateLaunchEnvironment = exports.createRobot = exports.runRobotRCC = exports.askAndRunRobotRCC = exports.uploadRobot = exports.rccConfigurationDiagnostics = exports.setPythonInterpreterFromRobotYaml = exports.askRobotSelection = exports.listAndAskRobotSelection = exports.resolveInterpreter = exports.cloudLogout = exports.cloudLogin = void 0;
+const vscode_1 = require("vscode");
+const path_1 = require("path");
+const channel_1 = require("./channel");
+const roboCommands = require("./robocorpCommands");
+const vscode = require("vscode");
+const pythonExtIntegration = require("./pythonExtIntegration");
+const ask_1 = require("./ask");
+const rcc_1 = require("./rcc");
+const viewsRobocorp_1 = require("./viewsRobocorp");
+function cloudLogin() {
+    return __awaiter(this, void 0, void 0, function* () {
+        let loggedIn;
+        do {
+            let credentials = yield vscode_1.window.showInputBox({
+                "password": true,
+                "prompt": "1. Press the Enter key to open Control Room and create a new access credential. 2. Paste the access credential in the field above ",
+                "ignoreFocusOut": true,
+            });
+            if (credentials == undefined) {
+                return false;
+            }
+            if (!credentials) {
+                vscode_1.env.openExternal(vscode_1.Uri.parse("https://cloud.robocorp.com/settings/access-credentials"));
+                continue;
+            }
+            let commandResult = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_CLOUD_LOGIN_INTERNAL, {
+                "credentials": credentials,
+            });
+            if (!commandResult) {
+                loggedIn = false;
+            }
+            else {
+                loggedIn = commandResult.success;
+            }
+            if (!loggedIn) {
+                let retry = "Retry with new credentials";
+                let selectedItem = yield vscode_1.window.showWarningMessage("Unable to log in with the provided credentials.", { "modal": true }, retry);
+                if (!selectedItem) {
+                    return false;
+                }
+            }
+        } while (!loggedIn);
+        return true;
+    });
+}
+exports.cloudLogin = cloudLogin;
+function cloudLogout() {
+    return __awaiter(this, void 0, void 0, function* () {
+        let loggedOut;
+        let isLoginNeededActionResult = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_IS_LOGIN_NEEDED_INTERNAL);
+        if (!isLoginNeededActionResult) {
+            vscode_1.window.showInformationMessage("Error getting information if already linked in.");
+            return;
+        }
+        if (isLoginNeededActionResult.result) {
+            vscode_1.window.showInformationMessage("Unable to unlink and remove credentials from Control Room. Current Control Room credentials are not valid.");
+            (0, viewsRobocorp_1.refreshCloudTreeView)();
+            return;
+        }
+        let YES = "Unlink";
+        const result = yield vscode_1.window.showWarningMessage(`Are you sure you want to unlink and remove credentials from Control Room?`, { "modal": true }, YES);
+        if (result !== YES) {
+            return;
+        }
+        loggedOut = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_CLOUD_LOGOUT_INTERNAL);
+        if (!loggedOut) {
+            vscode_1.window.showInformationMessage("Error unlinking and removing Control Room credentials.");
+            return;
+        }
+        if (!loggedOut.success) {
+            vscode_1.window.showInformationMessage("Unable to unlink and remove Control Room credentials.");
+            return;
+        }
+        vscode_1.window.showInformationMessage("Control Room credentials successfully unlinked and removed.");
+    });
+}
+exports.cloudLogout = cloudLogout;
+/**
+ * Note that callers need to check both whether it was successful as well as if the interpreter was resolved.
+ */
+function resolveInterpreter(targetRobot) {
+    return __awaiter(this, void 0, void 0, function* () {
+        // Note: this may also activate robotframework-lsp if it's still not activated
+        // (so, it cannot be used during startup as there'd be a cyclic dependency).
+        try {
+            let interpreter = yield vscode_1.commands.executeCommand("robot.resolveInterpreter", targetRobot);
+            return { "success": true, "message": "", "result": interpreter };
+        }
+        catch (error) {
+            // We couldn't resolve with the robotframework language server command, fallback to the robocorp code command.
+            try {
+                let result = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_RESOLVE_INTERPRETER, {
+                    "target_robot": targetRobot,
+                });
+                return result;
+            }
+            catch (error) {
+                (0, channel_1.logError)("Error resolving interpreter.", error, "ACT_RESOLVE_INTERPRETER");
+                return { "success": false, "message": "Unable to resolve interpreter.", "result": undefined };
+            }
+        }
+    });
+}
+exports.resolveInterpreter = resolveInterpreter;
+function listAndAskRobotSelection(selectionMessage, noRobotErrorMessage) {
+    return __awaiter(this, void 0, void 0, function* () {
+        let actionResult = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_LOCAL_LIST_ROBOTS_INTERNAL);
+        if (!actionResult.success) {
+            vscode_1.window.showInformationMessage("Error listing robots: " + actionResult.message);
+            return;
+        }
+        let robotsInfo = actionResult.result;
+        if (!robotsInfo || robotsInfo.length == 0) {
+            vscode_1.window.showInformationMessage(noRobotErrorMessage);
+            return;
+        }
+        let robot = yield askRobotSelection(robotsInfo, selectionMessage);
+        if (!robot) {
+            return;
+        }
+        return robot;
+    });
+}
+exports.listAndAskRobotSelection = listAndAskRobotSelection;
+function askRobotSelection(robotsInfo, message) {
+    return __awaiter(this, void 0, void 0, function* () {
+        let robot;
+        if (robotsInfo.length > 1) {
+            let captions = new Array();
+            for (let i = 0; i < robotsInfo.length; i++) {
+                const element = robotsInfo[i];
+                let caption = {
+                    "label": element.name,
+                    "description": element.directory,
+                    "action": element,
+                };
+                captions.push(caption);
+            }
+            let selectedItem = yield (0, ask_1.showSelectOneQuickPick)(captions, message);
+            if (!selectedItem) {
+                return;
+            }
+            robot = selectedItem.action;
+        }
+        else {
+            robot = robotsInfo[0];
+        }
+        return robot;
+    });
+}
+exports.askRobotSelection = askRobotSelection;
+function askAndCreateNewRobotAtWorkspace(wsInfo, directory) {
+    return __awaiter(this, void 0, void 0, function* () {
+        let robotName = yield vscode_1.window.showInputBox({
+            "prompt": "Please provide the name for the new Robot.",
+            "ignoreFocusOut": true,
+        });
+        if (!robotName) {
+            return;
+        }
+        let actionResult = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_UPLOAD_TO_NEW_ROBOT_INTERNAL, {
+            "workspaceId": wsInfo.workspaceId,
+            "directory": directory,
+            "robotName": robotName,
+        });
+        if (!actionResult.success) {
+            let msg = "Error uploading to new Robot: " + actionResult.message;
+            channel_1.OUTPUT_CHANNEL.appendLine(msg);
+            vscode_1.window.showErrorMessage(msg);
+        }
+        else {
+            vscode_1.window.showInformationMessage("Successfully submitted new Robot " + robotName + " to the Control Room.");
+        }
+    });
+}
+function setPythonInterpreterFromRobotYaml() {
+    return __awaiter(this, void 0, void 0, function* () {
+        let actionResult = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_LOCAL_LIST_ROBOTS_INTERNAL);
+        if (!actionResult.success) {
+            vscode_1.window.showInformationMessage("Error listing existing robots: " + actionResult.message);
+            return;
+        }
+        let robotsInfo = actionResult.result;
+        if (!robotsInfo || robotsInfo.length == 0) {
+            vscode_1.window.showInformationMessage("Unable to set Python extension interpreter (no Robot detected in the Workspace).");
+            return;
+        }
+        let robot = yield askRobotSelection(robotsInfo, "Please select the Robot from which the python executable should be used.");
+        if (!robot) {
+            return;
+        }
+        try {
+            let result = yield resolveInterpreter(robot.filePath);
+            if (!result.success) {
+                vscode_1.window.showWarningMessage("Error resolving interpreter info: " + result.message);
+                return;
+            }
+            let interpreter = result.result;
+            if (!interpreter || !interpreter.pythonExe) {
+                vscode_1.window.showWarningMessage("Unable to obtain interpreter information from: " + robot.filePath);
+                return;
+            }
+            // Note: if we got here we have a robot in the workspace.
+            yield pythonExtIntegration.setPythonInterpreterForPythonExtension(interpreter.pythonExe, vscode_1.Uri.file(robot.filePath));
+            let resource = vscode_1.Uri.file((0, path_1.dirname)(robot.filePath));
+            let pythonExecutableConfigured = yield pythonExtIntegration.getPythonExecutable(resource);
+            if (pythonExecutableConfigured == "config") {
+                vscode_1.window.showInformationMessage("Successfully set python executable path for vscode-python.");
+            }
+            else if (!pythonExecutableConfigured) {
+                vscode_1.window.showInformationMessage("Unable to verify if vscode-python executable was properly set. See OUTPUT -> Robocorp Code for more info.");
+            }
+            else {
+                if (pythonExecutableConfigured != interpreter.pythonExe) {
+                    let opt1 = "Copy python path to clipboard and call vscode-python command to set interpreter";
+                    let opt2 = "Open more info/instructions to opt-out of the pythonDeprecadePythonPath experiment";
+                    let selectedItem = yield vscode_1.window.showQuickPick([opt1, opt2, "Cancel"], {
+                        "canPickMany": false,
+                        "placeHolder": "Unable to set the interpreter (due to pythonDeprecatePythonPath experiment). How to proceed?",
+                        "ignoreFocusOut": true,
+                    });
+                    if (selectedItem == opt1) {
+                        yield vscode.env.clipboard.writeText(interpreter.pythonExe);
+                        yield vscode_1.commands.executeCommand("python.setInterpreter");
+                    }
+                    else if (selectedItem == opt2) {
+                        vscode_1.env.openExternal(vscode_1.Uri.parse("https://github.com/microsoft/vscode-python/wiki/AB-Experiments#pythondeprecatepythonpath"));
+                    }
+                }
+                else {
+                    vscode_1.window.showInformationMessage("Successfully set python executable path for vscode-python.");
+                }
+            }
+        }
+        catch (error) {
+            (0, channel_1.logError)("Error setting interpreter in python extension configuration.", error, "ACT_SETTING_PYTHON_PYTHONPATH");
+            vscode_1.window.showWarningMessage("Error setting interpreter in python extension configuration: " + error.message);
+            return;
+        }
+    });
+}
+exports.setPythonInterpreterFromRobotYaml = setPythonInterpreterFromRobotYaml;
+function rccConfigurationDiagnostics() {
+    return __awaiter(this, void 0, void 0, function* () {
+        let actionResult = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_LOCAL_LIST_ROBOTS_INTERNAL);
+        if (!actionResult.success) {
+            vscode_1.window.showInformationMessage("Error listing robots: " + actionResult.message);
+            return;
+        }
+        let robotsInfo = actionResult.result;
+        if (!robotsInfo || robotsInfo.length == 0) {
+            vscode_1.window.showInformationMessage("No Robot detected in the Workspace. If a robot.yaml is available, open it for more information.");
+            return;
+        }
+        let robot = yield askRobotSelection(robotsInfo, "Please select the Robot to analyze.");
+        if (!robot) {
+            return;
+        }
+        let diagnosticsActionResult = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_CONFIGURATION_DIAGNOSTICS_INTERNAL, { "robotYaml": robot.filePath });
+        if (!diagnosticsActionResult.success) {
+            vscode_1.window.showErrorMessage("Error computing diagnostics for Robot: " + diagnosticsActionResult.message);
+            return;
+        }
+        channel_1.OUTPUT_CHANNEL.appendLine(diagnosticsActionResult.result);
+        vscode_1.workspace.openTextDocument({ "content": diagnosticsActionResult.result }).then((document) => {
+            vscode_1.window.showTextDocument(document);
+        });
+    });
+}
+exports.rccConfigurationDiagnostics = rccConfigurationDiagnostics;
+function uploadRobot(robot) {
+    return __awaiter(this, void 0, void 0, function* () {
+        // Start this in parallel while we ask the user for info.
+        let isLoginNeededPromise = vscode_1.commands.executeCommand(roboCommands.ROBOCORP_IS_LOGIN_NEEDED_INTERNAL);
+        let currentUri;
+        if (vscode_1.window.activeTextEditor && vscode_1.window.activeTextEditor.document) {
+            currentUri = vscode_1.window.activeTextEditor.document.uri;
+        }
+        let actionResult = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_LOCAL_LIST_ROBOTS_INTERNAL);
+        if (!actionResult.success) {
+            vscode_1.window.showInformationMessage("Error submitting Robot to the Control Room: " + actionResult.message);
+            return;
+        }
+        let robotsInfo = actionResult.result;
+        if (!robotsInfo || robotsInfo.length == 0) {
+            vscode_1.window.showInformationMessage("Unable to submit Robot to the Control Room (no Robot detected in the Workspace).");
+            return;
+        }
+        let isLoginNeededActionResult = yield isLoginNeededPromise;
+        if (!isLoginNeededActionResult) {
+            vscode_1.window.showInformationMessage("Error getting if login is needed.");
+            return;
+        }
+        if (isLoginNeededActionResult.result) {
+            let loggedIn = yield cloudLogin();
+            if (!loggedIn) {
+                return;
+            }
+        }
+        if (!robot) {
+            robot = yield askRobotSelection(robotsInfo, "Please select the Robot to upload to the Control Room.");
+            if (!robot) {
+                return;
+            }
+        }
+        let refresh = false;
+        SELECT_OR_REFRESH: do {
+            let workspaceSelection = yield (0, ask_1.selectWorkspace)("Please select a Workspace to upload ‘" + robot.name + "’ to.", refresh);
+            if (workspaceSelection === undefined) {
+                return;
+            }
+            const workspaceInfo = workspaceSelection.workspaceInfo;
+            const workspaceIdFilter = workspaceSelection.selectedWorkspaceInfo.workspaceId;
+            // -------------------------------------------------------
+            // Select Robot/New Robot/Refresh
+            // -------------------------------------------------------
+            let captions = new Array();
+            for (let i = 0; i < workspaceInfo.length; i++) {
+                const wsInfo = workspaceInfo[i];
+                if (workspaceIdFilter != wsInfo.workspaceId) {
+                    continue;
+                }
+                for (let j = 0; j < wsInfo.packages.length; j++) {
+                    const robotInfo = wsInfo.packages[j];
+                    const wsDesc = (0, ask_1.getWorkspaceDescription)(wsInfo);
+                    // i.e.: Show the Robots with the same name with more priority in the list.
+                    let sortKey = "b" + wsDesc;
+                    if (robotInfo.name == robot.name) {
+                        sortKey = "a" + wsDesc;
+                    }
+                    let caption = {
+                        "label": "$(file) " + robotInfo.name,
+                        "description": "(Workspace: " + wsDesc + ")",
+                        "sortKey": sortKey,
+                        "action": { "existingRobotPackage": robotInfo },
+                    };
+                    captions.push(caption);
+                }
+                const wsDesc = (0, ask_1.getWorkspaceDescription)(wsInfo);
+                let caption = {
+                    "label": "$(new-folder) + Create new Robot",
+                    "description": "(Workspace: " + wsDesc + ")",
+                    "sortKey": "c" + wsDesc,
+                    "action": { "newRobotPackageAtWorkspace": wsInfo },
+                };
+                captions.push(caption);
+            }
+            let caption = {
+                "label": "$(refresh) * Refresh list",
+                "description": "Expected Workspace or Robot is not appearing.",
+                "sortKey": "d",
+                "action": { "refresh": true },
+            };
+            captions.push(caption);
+            (0, ask_1.sortCaptions)(captions);
+            let selectedItem = yield (0, ask_1.showSelectOneQuickPick)(captions, "Update an existing Robot or create a new one.");
+            if (!selectedItem) {
+                return;
+            }
+            let action = selectedItem.action;
+            if (action.refresh) {
+                refresh = true;
+                continue SELECT_OR_REFRESH;
+            }
+            if (action.newRobotPackageAtWorkspace) {
+                // No confirmation in this case
+                let wsInfo = action.newRobotPackageAtWorkspace;
+                yield askAndCreateNewRobotAtWorkspace(wsInfo, robot.directory);
+                return;
+            }
+            if (action.existingRobotPackage) {
+                let yesOverride = "Yes";
+                let noChooseDifferentTarget = "No";
+                let cancel = "Cancel";
+                let robotInfo = action.existingRobotPackage;
+                let updateExistingCaptions = new Array();
+                let caption = {
+                    "label": yesOverride,
+                    "detail": "Override existing Robot",
+                    "action": yesOverride,
+                };
+                updateExistingCaptions.push(caption);
+                caption = {
+                    "label": noChooseDifferentTarget,
+                    "detail": "Go back to choose a different Robot to update",
+                    "action": noChooseDifferentTarget,
+                };
+                updateExistingCaptions.push(caption);
+                caption = {
+                    "label": cancel,
+                    "detail": "Cancel the Robot upload",
+                    "action": cancel,
+                };
+                updateExistingCaptions.push(caption);
+                let selectedItem = yield (0, ask_1.showSelectOneQuickPick)(updateExistingCaptions, "This will overwrite the robot ‘" + robotInfo.name + "’ on Control Room. Are you sure? ");
+                // robot.language-server.python
+                if (selectedItem.action == noChooseDifferentTarget) {
+                    refresh = false;
+                    continue SELECT_OR_REFRESH;
+                }
+                if (selectedItem.action == cancel) {
+                    return;
+                }
+                // selectedItem == yesOverride.
+                let actionResult = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_UPLOAD_TO_EXISTING_ROBOT_INTERNAL, { "workspaceId": robotInfo.workspaceId, "robotId": robotInfo.id, "directory": robot.directory });
+                if (!actionResult.success) {
+                    let msg = "Error uploading to existing Robot: " + actionResult.message;
+                    channel_1.OUTPUT_CHANNEL.appendLine(msg);
+                    vscode_1.window.showErrorMessage(msg);
+                }
+                else {
+                    vscode_1.window.showInformationMessage("Successfully submitted Robot " + robot.name + " to the cloud.");
+                }
+                return;
+            }
+        } while (true);
+    });
+}
+exports.uploadRobot = uploadRobot;
+function askAndRunRobotRCC(noDebug) {
+    return __awaiter(this, void 0, void 0, function* () {
+        let textEditor = vscode_1.window.activeTextEditor;
+        let fileName = undefined;
+        if (textEditor) {
+            fileName = textEditor.document.fileName;
+        }
+        const RUN_IN_RCC_LRU_CACHE_NAME = "RUN_IN_RCC_LRU_CACHE";
+        let runLRU = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_LOAD_FROM_DISK_LRU, {
+            "name": RUN_IN_RCC_LRU_CACHE_NAME,
+        });
+        let actionResult = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_LOCAL_LIST_ROBOTS_INTERNAL);
+        if (!actionResult.success) {
+            vscode_1.window.showErrorMessage("Error listing Robots: " + actionResult.message);
+            return;
+        }
+        let robotsInfo = actionResult.result;
+        if (!robotsInfo || robotsInfo.length == 0) {
+            vscode_1.window.showInformationMessage("Unable to run Robot (no Robot detected in the Workspace).");
+            return;
+        }
+        let items = new Array();
+        for (let robotInfo of robotsInfo) {
+            let yamlContents = robotInfo.yamlContents;
+            let tasks = yamlContents["tasks"];
+            if (tasks) {
+                let taskNames = Object.keys(tasks);
+                for (let taskName of taskNames) {
+                    let keyInLRU = robotInfo.name + " - " + taskName + " - " + robotInfo.filePath;
+                    let item = {
+                        "label": "Run robot: " + robotInfo.name + "    Task: " + taskName,
+                        "description": robotInfo.filePath,
+                        "robotYaml": robotInfo.filePath,
+                        "taskName": taskName,
+                        "keyInLRU": keyInLRU,
+                    };
+                    if (runLRU && runLRU.length > 0 && keyInLRU == runLRU[0]) {
+                        // Note that although we have an LRU we just consider the last one for now.
+                        items.splice(0, 0, item);
+                    }
+                    else {
+                        items.push(item);
+                    }
+                }
+            }
+        }
+        if (!items) {
+            vscode_1.window.showInformationMessage("Unable to run Robot (no Robot detected in the Workspace).");
+            return;
+        }
+        let selectedItem;
+        if (items.length == 1) {
+            selectedItem = items[0];
+        }
+        else {
+            selectedItem = yield vscode_1.window.showQuickPick(items, {
+                "canPickMany": false,
+                "placeHolder": "Please select the Robot and Task to run.",
+                "ignoreFocusOut": true,
+            });
+        }
+        if (!selectedItem) {
+            return;
+        }
+        yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_SAVE_IN_DISK_LRU, {
+            "name": RUN_IN_RCC_LRU_CACHE_NAME,
+            "entry": selectedItem.keyInLRU,
+            "lru_size": 3,
+        });
+        runRobotRCC(noDebug, selectedItem.robotYaml, selectedItem.taskName);
+    });
+}
+exports.askAndRunRobotRCC = askAndRunRobotRCC;
+function runRobotRCC(noDebug, robotYaml, taskName) {
+    return __awaiter(this, void 0, void 0, function* () {
+        let debugConfiguration = {
+            "name": "Config",
+            "type": "robocorp-code",
+            "request": "launch",
+            "robot": robotYaml,
+            "task": taskName,
+            "args": [],
+            "noDebug": noDebug,
+        };
+        let debugSessionOptions = {};
+        vscode_1.debug.startDebugging(undefined, debugConfiguration, debugSessionOptions);
+    });
+}
+exports.runRobotRCC = runRobotRCC;
+function createRobot() {
+    return __awaiter(this, void 0, void 0, function* () {
+        let wsFolders = vscode_1.workspace.workspaceFolders;
+        if (!wsFolders) {
+            vscode_1.window.showErrorMessage("Unable to create Robot (no workspace folder is currently opened).");
+            return;
+        }
+        // Start up async calls.
+        let asyncListRobotTemplates = vscode_1.commands.executeCommand(roboCommands.ROBOCORP_LIST_ROBOT_TEMPLATES_INTERNAL);
+        let asyncListLocalRobots = vscode_1.commands.executeCommand(roboCommands.ROBOCORP_LOCAL_LIST_ROBOTS_INTERNAL);
+        let ws;
+        if (wsFolders.length == 1) {
+            ws = wsFolders[0];
+        }
+        else {
+            ws = yield vscode_1.window.showWorkspaceFolderPick({
+                "placeHolder": "Please select the workspace folder to create the Robot.",
+                "ignoreFocusOut": true,
+            });
+        }
+        if (!ws) {
+            // Operation cancelled.
+            return;
+        }
+        // Check if we still don't have a Robot in this folder (i.e.: if we have a Robot in the workspace
+        // root already, we shouldn't create another Robot inside it).
+        try {
+            let dirContents = yield vscode.workspace.fs.readDirectory(ws.uri);
+            for (const element of dirContents) {
+                if (element[0] === "robot.yaml") {
+                    vscode_1.window.showErrorMessage("It's not possible to create a Robot in: " +
+                        ws.uri.fsPath +
+                        " because this workspace folder is already a Robot (nested Robots are not allowed).");
+                    return;
+                }
+            }
+        }
+        catch (error) {
+            (0, channel_1.logError)("Error reading contents of: " + ws.uri.fsPath, error, "ACT_CREATE_ROBOT");
+        }
+        let actionResultListLocalRobots = yield asyncListLocalRobots;
+        let robotsInWorkspace = false;
+        if (!actionResultListLocalRobots.success) {
+            (0, rcc_1.feedbackRobocorpCodeError)("ACT_LIST_ROBOT");
+            vscode_1.window.showErrorMessage("Error listing robots: " + actionResultListLocalRobots.message + " (Robot creation will proceed).");
+            // This shouldn't happen, but let's proceed as if there were no Robots in the workspace.
+        }
+        else {
+            let robotsInfo = actionResultListLocalRobots.result;
+            robotsInWorkspace = robotsInfo && robotsInfo.length > 0;
+        }
+        // Unfortunately vscode does not have a good way to request multiple inputs at once,
+        // so, for now we're asking each at a separate step.
+        let actionResultListRobotTemplatesInternal = yield asyncListRobotTemplates;
+        if (!actionResultListRobotTemplatesInternal.success) {
+            (0, rcc_1.feedbackRobocorpCodeError)("ACT_LIST_ROBOT_TEMPLATE");
+            vscode_1.window.showErrorMessage("Unable to list Robot templates: " + actionResultListRobotTemplatesInternal.message);
+            return;
+        }
+        let availableTemplates = actionResultListRobotTemplatesInternal.result;
+        if (!availableTemplates) {
+            (0, rcc_1.feedbackRobocorpCodeError)("ACT_NO_ROBOT_TEMPLATE");
+            vscode_1.window.showErrorMessage("Unable to create Robot (the Robot templates could not be loaded).");
+            return;
+        }
+        let selectedItem = yield vscode_1.window.showQuickPick(availableTemplates.map((robotTemplate) => robotTemplate.description), {
+            "canPickMany": false,
+            "placeHolder": "Please select the template for the Robot.",
+            "ignoreFocusOut": true,
+        });
+        const selectedRobotTemplate = availableTemplates.find((robotTemplate) => robotTemplate.description === selectedItem);
+        channel_1.OUTPUT_CHANNEL.appendLine("Selected: " + (selectedRobotTemplate === null || selectedRobotTemplate === void 0 ? void 0 : selectedRobotTemplate.description));
+        if (!selectedRobotTemplate) {
+            // Operation cancelled.
+            return;
+        }
+        let useWorkspaceFolder;
+        if (robotsInWorkspace) {
+            // i.e.: if we already have robots, this is a multi-Robot workspace.
+            useWorkspaceFolder = false;
+        }
+        else {
+            const USE_WORKSPACE_FOLDER_LABEL = "Use workspace folder";
+            let target = yield vscode_1.window.showQuickPick([
+                { "label": USE_WORKSPACE_FOLDER_LABEL, "detail": "The workspace will only have a single Robot." },
+                {
+                    "label": "Use child folder in workspace",
+                    "detail": "Multiple Robots can be created in this workspace.",
+                },
+            ], {
+                "placeHolder": "Where do you want to create the Robot?",
+                "ignoreFocusOut": true,
+            });
+            if (!target) {
+                // Operation cancelled.
+                return;
+            }
+            useWorkspaceFolder = target["label"] == USE_WORKSPACE_FOLDER_LABEL;
+        }
+        let targetDir = ws.uri.fsPath;
+        if (!useWorkspaceFolder) {
+            let name = yield vscode_1.window.showInputBox({
+                "value": "Example",
+                "prompt": "Please provide the name for the Robot folder name.",
+                "ignoreFocusOut": true,
+            });
+            if (!name) {
+                // Operation cancelled.
+                return;
+            }
+            targetDir = (0, path_1.join)(targetDir, name);
+        }
+        // Now, let's validate if we can indeed create a Robot in the given folder.
+        let dirUri = vscode.Uri.file(targetDir);
+        let directoryExists = true;
+        try {
+            let stat = yield vscode.workspace.fs.stat(dirUri); // this will raise if the directory doesn't exist.
+            if (stat.type == vscode_1.FileType.File) {
+                vscode_1.window.showErrorMessage("It's not possible to create a Robot in: " +
+                    ws.uri.fsPath +
+                    " because this points to a file which already exists (please erase this file and retry).");
+                return;
+            }
+        }
+        catch (err) {
+            // ok, directory does not exist
+            directoryExists = false;
+        }
+        let force = false;
+        if (directoryExists) {
+            let isEmpty = true;
+            try {
+                // The directory already exists, let's see if it's empty (if it's not we need to check
+                // whether to force the creation of the Robot).
+                let dirContents = yield vscode.workspace.fs.readDirectory(dirUri);
+                for (const element of dirContents) {
+                    if (element[0] != ".vscode") {
+                        // If there's just a '.vscode', proceed, otherwise,
+                        // we need to ask the user about overwriting it.
+                        isEmpty = false;
+                        break;
+                    }
+                }
+            }
+            catch (error) {
+                (0, channel_1.logError)("Error reading contents of directory: " + dirUri, error, "ACT_CREATE_ROBOT_LIST_TARGET");
+            }
+            if (!isEmpty) {
+                const CANCEL = "Cancel Robot Creation";
+                // Check if the user wants to override the contents.
+                let target = yield vscode_1.window.showQuickPick([
+                    {
+                        "label": "Create Robot anyways",
+                        "detail": "The Robot will be created and conflicting files will be overwritten.",
+                    },
+                    {
+                        "label": CANCEL,
+                        "detail": "No changes will be done.",
+                    },
+                ], {
+                    "placeHolder": "The directory is not empty. How do you want to proceed?",
+                    "ignoreFocusOut": true,
+                });
+                if (!target || target["label"] == CANCEL) {
+                    // Operation cancelled.
+                    return;
+                }
+                force = true;
+            }
+        }
+        channel_1.OUTPUT_CHANNEL.appendLine("Creating Robot at: " + targetDir);
+        let createRobotResult = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_CREATE_ROBOT_INTERNAL, { "directory": targetDir, "template": selectedRobotTemplate.name, "force": force });
+        if (createRobotResult.success) {
+            try {
+                vscode_1.commands.executeCommand("workbench.files.action.refreshFilesExplorer");
+            }
+            catch (error) {
+                (0, channel_1.logError)("Error refreshing file explorer.", error, "ACT_REFRESH_FILE_EXPLORER");
+            }
+            vscode_1.window.showInformationMessage("Robot successfully created in:\n" + targetDir);
+        }
+        else {
+            channel_1.OUTPUT_CHANNEL.appendLine("Error creating Robot at: " + targetDir);
+            vscode_1.window.showErrorMessage(createRobotResult.message);
+        }
+    });
+}
+exports.createRobot = createRobot;
+function updateLaunchEnvironment(args) {
+    return __awaiter(this, void 0, void 0, function* () {
+        let robot = args["targetRobot"];
+        let environment = args["env"];
+        if (!robot) {
+            throw new Error("robot argument is required.");
+        }
+        if (environment === undefined) {
+            throw new Error("env argument is required.");
+        }
+        let condaPrefix = environment["CONDA_PREFIX"];
+        if (!condaPrefix) {
+            channel_1.OUTPUT_CHANNEL.appendLine("Unable to update launch environment for work items because CONDA_PREFIX is not available in the environment:\n" +
+                JSON.stringify(environment));
+            return environment;
+        }
+        // Note: we need to update the environment for:
+        // - Vault
+        // - Work items
+        let newEnv = Object.assign({}, environment);
+        let vaultInfoActionResult = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_GET_CONNECTED_VAULT_WORKSPACE_INTERNAL);
+        if (vaultInfoActionResult === null || vaultInfoActionResult === void 0 ? void 0 : vaultInfoActionResult.success) {
+            const vaultInfo = vaultInfoActionResult.result;
+            if (vaultInfo === null || vaultInfo === void 0 ? void 0 : vaultInfo.workspaceId) {
+                // The workspace vault is connected, so, we must authorize it...
+                let vaultInfoEnvActionResult = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_UPDATE_LAUNCH_ENV_GET_VAULT_ENV_INTERNAL);
+                if (!vaultInfoEnvActionResult.success) {
+                    throw new Error("It was not possible to connect to the vault while launching for: " +
+                        (0, ask_1.getWorkspaceDescription)(vaultInfo) +
+                        ".\nDetails: " +
+                        vaultInfoEnvActionResult.message);
+                }
+                for (const [key, value] of Object.entries(vaultInfoEnvActionResult.result)) {
+                    newEnv[key] = value;
+                }
+            }
+        }
+        let workItemsActionResult = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_LIST_WORK_ITEMS_INTERNAL, { "robot": robot, "increment_output": true });
+        if (!workItemsActionResult || !workItemsActionResult.success) {
+            return newEnv;
+        }
+        let result = workItemsActionResult.result;
+        if (!result) {
+            return newEnv;
+        }
+        // Let's verify that the library is available and has the version we expect.
+        let libraryVersionInfoActionResult;
+        try {
+            libraryVersionInfoActionResult = yield vscode_1.commands.executeCommand(roboCommands.ROBOCORP_VERIFY_LIBRARY_VERSION_INTERNAL, {
+                "conda_prefix": condaPrefix,
+                "library": "rpaframework",
+                "version": "11.3",
+            });
+        }
+        catch (error) {
+            (0, channel_1.logError)("Error updating launch environment.", error, "ACT_UPDATE_LAUNCH_ENV");
+            return newEnv;
+        }
+        if (!libraryVersionInfoActionResult["success"]) {
+            channel_1.OUTPUT_CHANNEL.appendLine("Launch environment for work items not updated. Reason: " + libraryVersionInfoActionResult.message);
+            return newEnv;
+        }
+        // If we have found the robot, we should have the result and thus we should always set the
+        // RPA_OUTPUT_WORKITEM_PATH (even if we don't have any input, we'll set to where we want
+        // to save items).
+        newEnv["RPA_OUTPUT_WORKITEM_PATH"] = result.new_output_workitem_path;
+        newEnv["RPA_WORKITEMS_ADAPTER"] = "RPA.Robocorp.WorkItems.FileAdapter";
+        const input_work_items = result.input_work_items;
+        const output_work_items = result.output_work_items;
+        if (input_work_items.length > 0 || output_work_items.length > 0) {
+            // If we have any input for this Robot, present it to the user.
+            let items = []; // Note: just use the action as a 'data'.
+            let noWorkItemLabel = "<No work item as input>";
+            items.push({
+                "label": "<No work item as input>",
+                "action": undefined,
+            });
+            for (const it of input_work_items) {
+                items.push({
+                    "label": it.name,
+                    "detail": "Input",
+                    "action": it.json_path,
+                });
+            }
+            for (const it of output_work_items) {
+                items.push({
+                    "label": it.name,
+                    "detail": "Output",
+                    "action": it.json_path,
+                });
+            }
+            let selectedItem = yield (0, ask_1.showSelectOneQuickPick)(items, "Please select the work item input to be used by RPA.Robocorp.WorkItems.");
+            if (!selectedItem) {
+                return "cancelled";
+            }
+            if (selectedItem.label === noWorkItemLabel) {
+                return newEnv;
+            }
+            // No need to await.
+            (0, rcc_1.feedback)("vscode.workitem.input.selected");
+            newEnv["RPA_INPUT_WORKITEM_PATH"] = selectedItem.action;
+        }
+        return newEnv;
+    });
+}
+exports.updateLaunchEnvironment = updateLaunchEnvironment;
+//# sourceMappingURL=activities.js.map

@@ -1,0 +1,16 @@
+channels:
+  - conda-forge
+
+dependencies:
+
+  - python=3.8.10
+
+  # https://pip.pypa.io/en/stable/news/
+  - pip=20.1
+
+  # https://anaconda.org/conda-forge/pyqt/files
+  - pyqt=5.12.3
+
+  - pip:
+    - robocorp-inspector==0.6.2
+    - robotframework==4.1
